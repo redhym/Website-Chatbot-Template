@@ -4,66 +4,80 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AI Assistant</title>
+  <title>Floating Chatbot</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f7f9fc;
       margin: 0;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      padding-top: 40px;
-      height: 100vh;
+      padding: 0;
+    }
+    #chat-bubble {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #007bff;
+      color: white;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      font-size: 30px;
+      text-align: center;
+      line-height: 60px;
+      cursor: pointer;
+      z-index: 9999;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     }
     #chat-container {
+      position: fixed;
+      bottom: 90px;
+      right: 20px;
+      width: 360px;
+      height: 500px;
       background: white;
-      width: 100%;
-      max-width: 600px;
-      height: 600px;
-      display: flex;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      display: none;
       flex-direction: column;
-      border-radius: 10px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       overflow: hidden;
+      z-index: 9998;
+      font-family: Arial, sans-serif;
     }
     #chatbox {
       flex-grow: 1;
-      padding: 16px;
+      padding: 12px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
     }
     .bot, .user {
       margin: 6px 0;
-      padding: 12px;
-      border-radius: 12px;
+      padding: 10px;
+      border-radius: 10px;
       max-width: 80%;
       line-height: 1.4;
     }
     .bot {
-      background: #e7f0fd;
+      background: #e6f0ff;
       align-self: flex-start;
     }
     .user {
-      background: #d2f4e8;
+      background: #d1f0e5;
       align-self: flex-end;
     }
     #inputRow {
       display: flex;
       padding: 10px;
-      border-top: 1px solid #ddd;
+      border-top: 1px solid #ccc;
     }
     #userInput {
       flex: 1;
-      padding: 10px;
-      border: 1px solid #ccc;
+      padding: 8px;
+      border: 1px solid #aaa;
       border-radius: 6px;
     }
     #sendBtn {
-      margin-left: 10px;
-      padding: 10px 15px;
-      background: #0066ff;
+      margin-left: 8px;
+      padding: 8px 12px;
+      background: #007bff;
       color: white;
       border: none;
       border-radius: 6px;
@@ -72,6 +86,9 @@
   </style>
 </head>
 <body>
+
+<div id="chat-bubble">💬</div>
+
 <div id="chat-container">
   <div id="chatbox">
     <div class="bot">Hi, how can I help you today?</div>
@@ -83,6 +100,8 @@
 </div>
 
 <script>
+const bubble = document.getElementById("chat-bubble");
+const container = document.getElementById("chat-container");
 const chatbox = document.getElementById("chatbox");
 const input = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
@@ -103,16 +122,15 @@ function isGreeting(msg) {
   return /\b(hi|hello|hey|good\s(morning|afternoon|evening))\b/i.test(msg);
 }
 
+function isNegativeResponse(msg) {
+  return /\b(no|no\s(thank|thanks)|nah|i\s*m\s*good)\b/i.test(msg);
+}
+
 function detectIntent(msg) {
   const lower = msg.toLowerCase();
   if (lower.match(/register|sign.*up|add.*customer/)) return "register";
   if (lower.match(/order|buy|book|place.*order/)) return "order";
   return null;
-}
-
-
-function isNegativeResponse(msg) {
-  return /\b(no|no\s(thank|thanks)|nah|i\s*m\s*good)\b/i.test(msg);
 }
 
 function handleInput(msg) {
@@ -195,7 +213,7 @@ function handleInput(msg) {
     }
   }
 
-  addMessage("Sorry, I didn't understand. Try saying something like 'I'd like to order gas' or 'register me'.");
+  addMessage("Sorry, I didn't understand. Try saying 'I'd like to order gas' or 'register me'.");
 }
 
 function submitData(action, payload) {
@@ -211,9 +229,7 @@ function submitData(action, payload) {
       flow = null;
       step = null;
     })
-    .catch(() => {
-      addMessage("⚠️ Something went wrong.");
-    });
+    .catch(() => addMessage("⚠️ Something went wrong."));
 }
 
 sendBtn.onclick = () => {
@@ -227,6 +243,10 @@ sendBtn.onclick = () => {
 input.addEventListener("keydown", e => {
   if (e.key === "Enter") sendBtn.click();
 });
+
+bubble.onclick = () => {
+  container.style.display = container.style.display === "flex" ? "none" : "flex";
+};
 </script>
 </body>
 </html>
