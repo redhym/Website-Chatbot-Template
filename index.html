@@ -1,0 +1,191 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Assistant</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h2 { margin: 15px 0; }
+    #chat-container {
+      flex-direction: column-reverse;
+      display: flex;
+      flex-direction: column;
+      height: 90%;
+      max-width: 600px;
+      width: 100%;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    #chatbox {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+    }
+    .bot, .user {
+      padding: 10px;
+      border-radius: 10px;
+      margin: 5px 0;
+      max-width: 75%;
+    }
+    .bot { background: #eee; margin-right: auto; }
+    .user { background: #d1e7dd; margin-left: auto; }
+    #inputRow {
+      display: flex;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+    }
+    #userInput {
+      flex: 1;
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    #sendBtn {
+      padding: 10px 15px;
+      margin-left: 10px;
+      border: none;
+      background: #0d6efd;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Assistant</h2>
+<div id="chat-container">
+  <div id="chatbox">
+    <div class="bot">Hi, how can I help you today?</div>
+    <div id="bottom"></div>
+  </div>
+  <div id="inputRow">
+    <input type="text" id="userInput" placeholder="Type your message here..." />
+    <button id="sendBtn">Send</button>
+  </div>
+</div>
+
+<script>
+const chatbox = document.getElementById("chatbox");
+const input = document.getElementById("userInput");
+const sendBtn = document.getElementById("sendBtn");
+const bottom = document.getElementById("bottom");
+
+let state = null;
+let orderData = {};
+let customerData = {};
+
+function addMessage(text, sender = 'bot') {
+  const msg = document.createElement('div');
+  msg.className = sender;
+  msg.textContent = text;
+  chatbox.insertBefore(msg, bottom);
+  bottom.scrollIntoView({ behavior: "smooth" });
+}
+
+function handleUserInput(message) {
+  const lower = message.toLowerCase();
+
+  if (state === "order-name") {
+    orderData.name = message;
+    addMessage("What is your address?");
+    state = "order-address";
+  } else if (state === "order-address") {
+    orderData.address = message;
+    submitData("placeOrder", orderData);
+    state = null;
+  } else if (state === "order-product") {
+    const match = message.match(/(\d+)\s?(x)?\s?(.*)/i);
+    if (match) {
+      orderData.quantity = match[1];
+      orderData.product = match[3].trim();
+      addMessage("What is your name?");
+      state = "order-name";
+    } else {
+      orderData.product = message;
+      addMessage("How many would you like?");
+      state = "order-quantity";
+    }
+  } else if (state === "order-quantity") {
+    orderData.quantity = message;
+    addMessage("What is your name?");
+    state = "order-name";
+  } else if (state === "customer-name") {
+    customerData.name = message;
+    addMessage("Phone number?");
+    state = "customer-phone";
+  } else if (state === "customer-phone") {
+    customerData.phone = message;
+    addMessage("Email address?");
+    state = "customer-email";
+  } else if (state === "customer-email") {
+    customerData.email = message;
+    submitData("addCustomer", customerData);
+    state = null;
+  } else if (["hi", "hello", "hey"].includes(lower.trim())) {
+    addMessage("Hello! How can I assist you today?");
+    return;
+  } else {
+    if (lower.includes("order")) {
+      orderData = {};
+      state = "order-product";
+      handleUserInput(message);
+      return;
+    } else if (lower.includes("register") || lower.includes("new customer")) {
+      customerData = {};
+      addMessage("What is your full name?");
+      state = "customer-name";
+    } else if (lower.includes("hours")) {
+      addMessage("We are open from 8am to 6pm, Monday to Saturday.");
+    } else {
+      addMessage("Sorry, I didn't understand that. Try 'I want to order 2 gas bottles' or 'register me'.");
+    }
+  }
+}
+
+function submitData(action, data) {
+  const url = "https://chatbot-proxy-803731777943.us-central1.run.app";
+  fetch(url, {
+    method: "POST",
+    body: JSON.stringify({ action, ...data }),
+    headers: { "Content-Type": "application/json" }
+  })
+  .then(r => r.text())
+  .then(txt => addMessage(txt || "✅ Submitted successfully!"))
+  .catch(err => {
+    console.error(err);
+    addMessage("⚠️ Something went wrong. Please try again.");
+  });
+}
+
+sendBtn.onclick = () => {
+  const val = input.value.trim();
+  if (!val) return;
+  addMessage(val, 'user');
+  handleUserInput(val);
+  input.value = '';
+};
+
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    sendBtn.click();
+  }
+});
+</script>
+
+</body>
+</html>
