@@ -2,78 +2,82 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Assistant</title>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Assistant</title>
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
+    body {
       font-family: Arial, sans-serif;
       background: #f4f4f4;
+      margin: 0;
       display: flex;
-      flex-direction: column;
-      align-items: center;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 40px;
+      height: 100vh;
     }
-    h2 { margin: 15px 0; }
     #chat-container {
-      flex-direction: column-reverse;
+      background: white;
+      width: 100%;
+      max-width: 600px;
+      height: 600px;
       display: flex;
       flex-direction: column;
-      height: 90%;
-      max-width: 600px;
-      width: 100%;
-      background: #fff;
-      border-radius: 10px;
+      border-radius: 8px;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      overflow: hidden;
     }
     #chatbox {
       flex-grow: 1;
-      overflow-y: auto;
       padding: 15px;
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
     }
     .bot, .user {
+      margin: 5px 0;
       padding: 10px;
       border-radius: 10px;
-      margin: 5px 0;
-      max-width: 75%;
+      max-width: 80%;
     }
-    .bot { background: #eee; margin-right: auto; }
-    .user { background: #d1e7dd; margin-left: auto; }
+    .bot {
+      background: #e6f0ff;
+      align-self: flex-start;
+    }
+    .user {
+      background: #d1e7dd;
+      align-self: flex-end;
+    }
     #inputRow {
       display: flex;
       padding: 10px;
-      border-top: 1px solid #ccc;
+      border-top: 1px solid #ddd;
     }
     #userInput {
       flex: 1;
       padding: 10px;
-      border-radius: 5px;
       border: 1px solid #ccc;
+      border-radius: 5px;
     }
     #sendBtn {
-      padding: 10px 15px;
       margin-left: 10px;
-      border: none;
-      background: #0d6efd;
+      padding: 10px 15px;
+      background: #007bff;
       color: white;
+      border: none;
       border-radius: 5px;
       cursor: pointer;
     }
   </style>
 </head>
 <body>
-
-<h2>Assistant</h2>
 <div id="chat-container">
   <div id="chatbox">
     <div class="bot">Hi, how can I help you today?</div>
-    <div id="bottom"></div>
+    
   </div>
   <div id="inputRow">
-    <input type="text" id="userInput" placeholder="Type your message here..." />
+    <input type="text" id="userInput" placeholder="Type your message..." />
     <button id="sendBtn">Send</button>
   </div>
 </div>
@@ -84,108 +88,126 @@ const input = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
 const bottom = document.getElementById("bottom");
 
-let state = null;
-let orderData = {};
-let customerData = {};
+let step = null;
+let data = { quantity: null, product: null, name: null, address: null };
+let confirming = false;
 
-function addMessage(text, sender = 'bot') {
-  const msg = document.createElement('div');
+function addMessage(text, sender = "bot") {
+  const msg = document.createElement("div");
   msg.className = sender;
   msg.textContent = text;
-  chatbox.insertBefore(msg, bottom);
-  bottom.scrollIntoView({ behavior: "smooth" });
+  chatbox.appendChild(msg);
+  
+  setTimeout(() => {
+    const messages = chatbox.querySelectorAll(".bot, .user");
+    if (messages.length) {
+      messages[messages.length - 1].scrollIntoView({ behavior: "smooth" });
+    }
+  }, 0);
+
 }
 
-function handleUserInput(message) {
-  const lower = message.toLowerCase();
+function resetFlow() {
+  step = null;
+  confirming = false;
+  data = { quantity: null, product: null, name: null, address: null };
+  chatbox.innerHTML = '<div class="bot">Hi, how can I help you today?</div>';
+  bottom.scrollIntoView();
+}
 
-  if (state === "order-name") {
-    orderData.name = message;
-    addMessage("What is your address?");
-    state = "order-address";
-  } else if (state === "order-address") {
-    orderData.address = message;
-    submitData("placeOrder", orderData);
-    state = null;
-  } else if (state === "order-product") {
-    const match = message.match(/(\d+)\s?(x)?\s?(.*)/i);
-    if (match) {
-      orderData.quantity = match[1];
-      orderData.product = match[3].trim();
-      addMessage("What is your name?");
-      state = "order-name";
+function handleInput(msg) {
+  const lower = msg.toLowerCase();
+
+  if (confirming) {
+    if (lower.includes("no")) {
+      addMessage("Thanks! Have a great day.");
     } else {
-      orderData.product = message;
-      addMessage("How many would you like?");
-      state = "order-quantity";
+      addMessage("What would you like to do next?");
     }
-  } else if (state === "order-quantity") {
-    orderData.quantity = message;
-    addMessage("What is your name?");
-    state = "order-name";
-  } else if (state === "customer-name") {
-    customerData.name = message;
-    addMessage("Phone number?");
-    state = "customer-phone";
-  } else if (state === "customer-phone") {
-    customerData.phone = message;
-    addMessage("Email address?");
-    state = "customer-email";
-  } else if (state === "customer-email") {
-    customerData.email = message;
-    submitData("addCustomer", customerData);
-    state = null;
-  } else if (["hi", "hello", "hey"].includes(lower.trim())) {
-    addMessage("Hello! How can I assist you today?");
+    confirming = false;
     return;
-  } else {
-    if (lower.includes("order")) {
-      orderData = {};
-      state = "order-product";
-      handleUserInput(message);
-      return;
-    } else if (lower.includes("register") || lower.includes("new customer")) {
-      customerData = {};
-      addMessage("What is your full name?");
-      state = "customer-name";
-    } else if (lower.includes("hours")) {
-      addMessage("We are open from 8am to 6pm, Monday to Saturday.");
-    } else {
-      addMessage("Sorry, I didn't understand that. Try 'I want to order 2 gas bottles' or 'register me'.");
-    }
   }
+
+  if (["hi", "hello", "hey"].includes(lower.trim())) {
+    addMessage("Hello! Would you like to place an order or register as a customer?");
+    return;
+  }
+
+  if (!step && lower.includes("order")) {
+    step = "quantity";
+    addMessage("Sure! How many cylinders would you like?");
+    return;
+  }
+
+  if (step === "quantity") {
+    const qtyMatch = msg.match(/\d+/);
+    if (qtyMatch) {
+      data.quantity = qtyMatch[0];
+      step = "product";
+      addMessage("What capacity cylinders would you like?");
+    } else {
+      addMessage("Please enter a valid number of cylinders.");
+    }
+    return;
+  }
+
+  if (step === "product") {
+    const capMatch = msg.match(/\d+/);
+    if (capMatch) {
+      data.product = capMatch[0] + "kg";
+      step = "name";
+      addMessage("What is your name?");
+    } else {
+      addMessage("Please enter a valid cylinder size (e.g., 9kg, 15kg).");
+    }
+    return;
+  }
+
+  if (step === "name") {
+    data.name = msg;
+    step = "address";
+    addMessage("What is your address?");
+    return;
+  }
+
+  if (step === "address") {
+    data.address = msg;
+    submitOrder();
+    return;
+  }
+
+  addMessage("Sorry, I didn’t understand that. You can say 'I want to order 2 gas bottles'.");
 }
 
-function submitData(action, data) {
-  const url = "https://chatbot-proxy-803731777943.us-central1.run.app";
-  fetch(url, {
+function submitOrder() {
+  fetch("https://chatbot-proxy-803731777943.us-central1.run.app", {
     method: "POST",
-    body: JSON.stringify({ action, ...data }),
-    headers: { "Content-Type": "application/json" }
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "placeOrder", ...data })
   })
-  .then(r => r.text())
-  .then(txt => addMessage(txt || "✅ Submitted successfully!"))
-  .catch(err => {
-    console.error(err);
-    addMessage("⚠️ Something went wrong. Please try again.");
-  });
+    .then((r) => r.text())
+    .then((txt) => {
+      addMessage(txt || "✅ Order placed!");
+      setTimeout(() => {
+        addMessage("Can I help you with anything else?");
+        confirming = true;
+      }, 500);
+      step = null;
+    })
+    .catch(() => addMessage("⚠️ Something went wrong. Please try again."));
 }
 
 sendBtn.onclick = () => {
   const val = input.value.trim();
   if (!val) return;
-  addMessage(val, 'user');
-  handleUserInput(val);
-  input.value = '';
+  addMessage(val, "user");
+  handleInput(val);
+  input.value = "";
 };
 
-input.addEventListener("keydown", e => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    sendBtn.click();
-  }
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sendBtn.click();
 });
 </script>
-
 </body>
 </html>
