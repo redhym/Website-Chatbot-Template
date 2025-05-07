@@ -8,7 +8,7 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f4f4f4;
+      background: #f7f9fc;
       margin: 0;
       display: flex;
       justify-content: center;
@@ -23,29 +23,30 @@
       height: 600px;
       display: flex;
       flex-direction: column;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       overflow: hidden;
     }
     #chatbox {
       flex-grow: 1;
-      padding: 15px;
+      padding: 16px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
     }
     .bot, .user {
-      margin: 5px 0;
-      padding: 10px;
-      border-radius: 10px;
+      margin: 6px 0;
+      padding: 12px;
+      border-radius: 12px;
       max-width: 80%;
+      line-height: 1.4;
     }
     .bot {
-      background: #e6f0ff;
+      background: #e7f0fd;
       align-self: flex-start;
     }
     .user {
-      background: #d1e7dd;
+      background: #d2f4e8;
       align-self: flex-end;
     }
     #inputRow {
@@ -57,15 +58,15 @@
       flex: 1;
       padding: 10px;
       border: 1px solid #ccc;
-      border-radius: 5px;
+      border-radius: 6px;
     }
     #sendBtn {
       margin-left: 10px;
       padding: 10px 15px;
-      background: #007bff;
+      background: #0066ff;
       color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: 6px;
       cursor: pointer;
     }
   </style>
@@ -74,7 +75,6 @@
 <div id="chat-container">
   <div id="chatbox">
     <div class="bot">Hi, how can I help you today?</div>
-    
   </div>
   <div id="inputRow">
     <input type="text" id="userInput" placeholder="Type your message..." />
@@ -86,115 +86,134 @@
 const chatbox = document.getElementById("chatbox");
 const input = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
-const bottom = document.getElementById("bottom");
 
+let flow = null;
 let step = null;
-let data = { quantity: null, product: null, name: null, address: null };
-let confirming = false;
+let data = { name: null, phone: null, email: null, quantity: null, product: null, address: null };
 
 function addMessage(text, sender = "bot") {
   const msg = document.createElement("div");
   msg.className = sender;
   msg.textContent = text;
   chatbox.appendChild(msg);
-  
-  setTimeout(() => {
-    const messages = chatbox.querySelectorAll(".bot, .user");
-    if (messages.length) {
-      messages[messages.length - 1].scrollIntoView({ behavior: "smooth" });
-    }
-  }, 0);
-
+  chatbox.lastChild.scrollIntoView({ behavior: "smooth" });
 }
 
-function resetFlow() {
-  step = null;
-  confirming = false;
-  data = { quantity: null, product: null, name: null, address: null };
-  chatbox.innerHTML = '<div class="bot">Hi, how can I help you today?</div>';
-  bottom.scrollIntoView();
+function isGreeting(msg) {
+  return /\b(hi|hello|hey|good\s(morning|afternoon|evening))\b/i.test(msg);
+}
+
+function detectIntent(msg) {
+  const lower = msg.toLowerCase();
+  if (lower.match(/register|sign.*up|add.*customer/)) return "register";
+  if (lower.match(/order|buy|book|place.*order/)) return "order";
+  return null;
+}
+
+
+function isNegativeResponse(msg) {
+  return /\b(no|no\s(thank|thanks)|nah|i\s*m\s*good)\b/i.test(msg);
 }
 
 function handleInput(msg) {
-  const lower = msg.toLowerCase();
-
-  if (confirming) {
-    if (lower.includes("no")) {
-      addMessage("Thanks! Have a great day.");
-    } else {
-      addMessage("What would you like to do next?");
-    }
-    confirming = false;
+  if (isNegativeResponse(msg)) {
+    addMessage("Alright, have a great day! 😊");
+    flow = null;
+    step = null;
     return;
   }
 
-  if (["hi", "hello", "hey"].includes(lower.trim())) {
+  const intent = detectIntent(msg);
+
+  if (!flow && isGreeting(msg)) {
     addMessage("Hello! Would you like to place an order or register as a customer?");
     return;
   }
 
-  if (!step && lower.includes("order")) {
+  if (!flow && intent === "register") {
+    flow = "register";
+    step = "name";
+    addMessage("Sure! What's your name?");
+    return;
+  }
+
+  if (!flow && intent === "order") {
+    flow = "order";
     step = "quantity";
     addMessage("Sure! How many cylinders would you like?");
     return;
   }
 
-  if (step === "quantity") {
-    const qtyMatch = msg.match(/\d+/);
-    if (qtyMatch) {
-      data.quantity = qtyMatch[0];
+  if (flow === "register") {
+    if (step === "name") {
+      data.name = msg;
+      step = "phone";
+      addMessage("Thanks. What's your phone number?");
+      return;
+    }
+    if (step === "phone") {
+      data.phone = msg;
+      step = "email";
+      addMessage("Great. And your email address?");
+      return;
+    }
+    if (step === "email") {
+      data.email = msg;
+      submitData("addCustomer", data);
+      return;
+    }
+  }
+
+  if (flow === "order") {
+    if (step === "quantity") {
+      data.quantity = msg;
       step = "product";
       addMessage("What capacity cylinders would you like?");
-    } else {
-      addMessage("Please enter a valid number of cylinders.");
+      return;
     }
-    return;
-  }
-
-  if (step === "product") {
-    const capMatch = msg.match(/\d+/);
-    if (capMatch) {
-      data.product = capMatch[0] + "kg";
-      step = "name";
-      addMessage("What is your name?");
-    } else {
-      addMessage("Please enter a valid cylinder size (e.g., 9kg, 15kg).");
+    if (step === "product") {
+      data.product = msg;
+      if (data.name) {
+        step = "address";
+        addMessage("What is your delivery address?");
+      } else {
+        step = "name";
+        addMessage("What is your name?");
+      }
+      return;
     }
-    return;
+    if (step === "name") {
+      data.name = msg;
+      step = "address";
+      addMessage("What is your delivery address?");
+      return;
+    }
+    if (step === "address") {
+      data.address = msg;
+      submitData("placeOrder", data);
+      return;
+    }
   }
 
-  if (step === "name") {
-    data.name = msg;
-    step = "address";
-    addMessage("What is your address?");
-    return;
-  }
-
-  if (step === "address") {
-    data.address = msg;
-    submitOrder();
-    return;
-  }
-
-  addMessage("Sorry, I didn’t understand that. You can say 'I want to order 2 gas bottles'.");
+  addMessage("Sorry, I didn't understand. Try saying something like 'I'd like to order gas' or 'register me'.");
 }
 
-function submitOrder() {
+function submitData(action, payload) {
   fetch("https://chatbot-proxy-803731777943.us-central1.run.app", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "placeOrder", ...data })
+    body: JSON.stringify({ action, ...payload })
   })
-    .then((r) => r.text())
-    .then((txt) => {
-      addMessage(txt || "✅ Order placed!");
-      setTimeout(() => {
-        addMessage("Can I help you with anything else?");
-        confirming = true;
-      }, 500);
+    .then(r => r.text())
+    .then(txt => {
+      addMessage(txt || "✅ Done!");
+      setTimeout(() => addMessage("Can I help you with anything else?"), 500);
+      flow = null;
       step = null;
     })
-    .catch(() => addMessage("⚠️ Something went wrong. Please try again."));
+    .catch(() => {
+      addMessage("⚠️ Something went wrong.");
+    });
 }
 
 sendBtn.onclick = () => {
@@ -205,7 +224,7 @@ sendBtn.onclick = () => {
   input.value = "";
 };
 
-input.addEventListener("keydown", (e) => {
+input.addEventListener("keydown", e => {
   if (e.key === "Enter") sendBtn.click();
 });
 </script>
