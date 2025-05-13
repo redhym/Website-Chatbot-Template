@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -25,6 +24,10 @@
       cursor: pointer;
       z-index: 9999;
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+    }
+    #chat-bubble:hover {
+      transform: scale(1.1);
     }
     #chat-container {
       position: fixed;
@@ -40,6 +43,7 @@
       overflow: hidden;
       z-index: 9998;
       font-family: Arial, sans-serif;
+      transition: all 0.3s ease;
     }
     #chatbox {
       flex-grow: 1;
@@ -47,6 +51,7 @@
       overflow-y: auto;
       display: flex;
       flex-direction: column;
+      background: #f8f9fa;
     }
     .bot, .user {
       margin: 6px 0;
@@ -54,34 +59,53 @@
       border-radius: 10px;
       max-width: 80%;
       line-height: 1.4;
+      word-wrap: break-word;
     }
     .bot {
       background: #e6f0ff;
       align-self: flex-start;
+      border-bottom-left-radius: 4px;
     }
     .user {
       background: #d1f0e5;
       align-self: flex-end;
+      border-bottom-right-radius: 4px;
     }
     #inputRow {
       display: flex;
       padding: 10px;
-      border-top: 1px solid #ccc;
+      border-top: 1px solid #eee;
+      background: white;
     }
     #userInput {
       flex: 1;
-      padding: 8px;
-      border: 1px solid #aaa;
+      padding: 12px;
+      border: 1px solid #ddd;
       border-radius: 6px;
+      margin-right: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    #userInput:focus {
+      outline: none;
+      border-color: #007bff;
     }
     #sendBtn {
-      margin-left: 8px;
-      padding: 8px 12px;
+      padding: 8px 16px;
       background: #007bff;
       color: white;
       border: none;
       border-radius: 6px;
       cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.3s;
+    }
+    #sendBtn:hover {
+      background: #0056b3;
+    }
+    #sendBtn:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
     }
   </style>
 </head>
@@ -115,7 +139,7 @@ function addMessage(text, sender = "bot") {
   msg.className = sender;
   msg.textContent = text;
   chatbox.appendChild(msg);
-  chatbox.lastChild.scrollIntoView({ behavior: "smooth" });
+  msg.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
 function isGreeting(msg) {
@@ -128,95 +152,173 @@ function isNegativeResponse(msg) {
 
 function detectIntent(msg) {
   const lower = msg.toLowerCase();
-  if (lower.match(/register|sign.*up|add.*customer/)) return "register";
-  if (lower.match(/order|buy|book|place.*order/)) return "order";
+  
+  // Direct gas order intent
+  if (lower.includes('gas') || lower.includes('cylinder')) {
+    return "order";
+  }
+  
+  // Registration intent
+  if (lower.match(/register|sign.*up|add.*customer|new.*customer/)) {
+    return "register";
+  }
+  
+  // General order intent
+  if (lower.match(/order|buy|book|place.*order/)) {
+    return "order";
+  }
+  
   return null;
 }
 
-function handleInput(msg) {
+function validateInput(type, value) {
+  switch(type) {
+    case 'phone':
+      return /^\+?\d{10,}$/.test(value.replace(/[\s-]/g, ''));
+    case 'email':
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    case 'quantity':
+      return /^\d+$/.test(value) && parseInt(value) > 0;
+    default:
+      return value.length > 0;
+  }
+}
+
+function handleInput() {
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  // Add user message to chat
+  addMessage(msg, "user");
+  input.value = "";
+
   if (isNegativeResponse(msg)) {
     addMessage("Alright, have a great day! 😊");
-    flow = null;
-    step = null;
+    resetChat();
     return;
   }
 
   const intent = detectIntent(msg);
 
-  if (!flow && isGreeting(msg)) {
-    addMessage("Hello! Would you like to place an order or register as a customer?");
+  if (!flow) {
+    if (isGreeting(msg)) {
+      // If greeting includes order intent, skip the generic question
+      const greetingIntent = detectIntent(msg);
+      if (greetingIntent === "order") {
+        flow = "order";
+        step = "quantity";
+        addMessage("Sure! How many gas cylinders would you like?");
+        return;
+      }
+      addMessage("Hello! Would you like to place an order or register as a customer?");
+      return;
+    }
+
+    if (intent === "register") {
+      flow = "register";
+      step = "name";
+      addMessage("Sure! What's your name?");
+      return;
+    }
+
+    if (intent === "order") {
+      flow = "order";
+      step = "quantity";
+      addMessage("Sure! How many gas cylinders would you like?");
+      return;
+    }
+
+    addMessage("Sorry, I didn't understand. Try saying 'I'd like to order gas' or 'register me'.");
     return;
   }
 
-  if (!flow && intent === "register") {
-    flow = "register";
-    step = "name";
-    addMessage("Sure! What's your name?");
-    return;
-  }
-
-  if (!flow && intent === "order") {
-    flow = "order";
-    step = "quantity";
-    addMessage("Sure! How many cylinders would you like?");
-    return;
-  }
-
+  // Handle registration flow
   if (flow === "register") {
-    if (step === "name") {
-      data.name = msg;
-      step = "phone";
-      addMessage("Thanks. What's your phone number?");
-      return;
+    switch(step) {
+      case "name":
+        if (!validateInput('name', msg)) {
+          addMessage("Please enter a valid name.");
+          return;
+        }
+        data.name = msg;
+        step = "phone";
+        addMessage("Thanks. What's your phone number?");
+        break;
+      case "phone":
+        if (!validateInput('phone', msg)) {
+          addMessage("Please enter a valid phone number (at least 10 digits).");
+          return;
+        }
+        data.phone = msg;
+        step = "email";
+        addMessage("Great. And your email address?");
+        break;
+      case "email":
+        if (!validateInput('email', msg)) {
+          addMessage("Please enter a valid email address.");
+          return;
+        }
+        data.email = msg;
+        submitData("addCustomer", data);
+        break;
     }
-    if (step === "phone") {
-      data.phone = msg;
-      step = "email";
-      addMessage("Great. And your email address?");
-      return;
-    }
-    if (step === "email") {
-      data.email = msg;
-      submitData("addCustomer", data);
-      return;
-    }
+    return;
   }
 
+  // Handle order flow
   if (flow === "order") {
-    if (step === "quantity") {
-      data.quantity = msg;
-      step = "product";
-      addMessage("What capacity cylinders would you like?");
-      return;
-    }
-    if (step === "product") {
-      data.product = msg;
-      if (data.name) {
+    switch(step) {
+      case "quantity":
+        if (!validateInput('quantity', msg)) {
+          addMessage("Please enter a valid quantity (a positive number).");
+          return;
+        }
+        data.quantity = msg;
+        step = "product";
+        addMessage("What capacity cylinders would you like? (e.g., 9kg, 45kg)");
+        break;
+      case "product":
+        data.product = msg;
+        if (!data.name) {
+          step = "name";
+          addMessage("What is your name?");
+        } else {
+          step = "address";
+          addMessage("What is your delivery address?");
+        }
+        break;
+      case "name":
+        if (!validateInput('name', msg)) {
+          addMessage("Please enter a valid name.");
+          return;
+        }
+        data.name = msg;
         step = "address";
         addMessage("What is your delivery address?");
-      } else {
-        step = "name";
-        addMessage("What is your name?");
-      }
-      return;
+        break;
+      case "address":
+        if (!validateInput('address', msg)) {
+          addMessage("Please enter a valid address.");
+          return;
+        }
+        data.address = msg;
+        submitData("placeOrder", data);
+        break;
     }
-    if (step === "name") {
-      data.name = msg;
-      step = "address";
-      addMessage("What is your delivery address?");
-      return;
-    }
-    if (step === "address") {
-      data.address = msg;
-      submitData("placeOrder", data);
-      return;
-    }
+    return;
   }
+}
 
-  addMessage("Sorry, I didn't understand. Try saying 'I'd like to order gas' or 'register me'.");
+function resetChat() {
+  flow = null;
+  step = null;
+  data = { name: null, phone: null, email: null, quantity: null, product: null, address: null };
 }
 
 function submitData(action, payload) {
+  sendBtn.disabled = true;
+  input.disabled = true;
+  
   fetch("https://chatbot-proxy-803731777943.us-central1.run.app", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -226,27 +328,39 @@ function submitData(action, payload) {
     .then(txt => {
       addMessage(txt || "✅ Done!");
       setTimeout(() => addMessage("Can I help you with anything else?"), 500);
-      flow = null;
-      step = null;
+      resetChat();
     })
-    .catch(() => addMessage("⚠️ Something went wrong."));
+    .catch(() => {
+      addMessage("⚠️ Something went wrong. Please try again.");
+      resetChat();
+    })
+    .finally(() => {
+      sendBtn.disabled = false;
+      input.disabled = false;
+    });
 }
 
-sendBtn.onclick = () => {
-  const val = input.value.trim();
-  if (!val) return;
-  addMessage(val, "user");
-  handleInput(val);
-  input.value = "";
-};
-
-input.addEventListener("keydown", e => {
-  if (e.key === "Enter") sendBtn.click();
-});
-
+// Event Listeners
 bubble.onclick = () => {
   container.style.display = container.style.display === "flex" ? "none" : "flex";
+  if (container.style.display === "flex") {
+    input.focus();
+  }
 };
+
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    handleInput();
+  }
+});
+
+sendBtn.addEventListener("click", handleInput);
+
+// Enable/disable send button based on input
+input.addEventListener("input", () => {
+  sendBtn.disabled = !input.value.trim();
+});
 </script>
 </body>
 </html>
