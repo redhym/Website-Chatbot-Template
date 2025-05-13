@@ -188,7 +188,11 @@ function addMessage(text, sender = "bot") {
     msg.className = sender;
     msg.textContent = text;
     chatbox.appendChild(msg);
-    msg.scrollIntoView({ behavior: "smooth", block: "end" });
+    
+    // Improved auto-scrolling
+    setTimeout(() => {
+        chatbox.scrollTop = chatbox.scrollHeight;
+    }, 100);
 }
 
 function showTypingIndicator() {
@@ -224,17 +228,14 @@ function isNegativeResponse(msg) {
 function detectIntent(msg) {
     const lower = msg.toLowerCase();
     
-    // Direct gas order intent
     if (lower.includes('gas') || lower.includes('cylinder')) {
         return "order";
     }
     
-    // Registration intent
     if (lower.match(/register|sign.*up|add.*customer|new.*customer/)) {
         return "register";
     }
     
-    // General order intent
     if (lower.match(/order|buy|book|place.*order/)) {
         return "order";
     }
@@ -251,14 +252,12 @@ function extractQuantity(msg) {
     
     const lower = msg.toLowerCase();
     
-    // Check for written numbers
     for (const [word, num] of Object.entries(numberWords)) {
         if (lower.includes(word)) {
             return num.toString();
         }
     }
     
-    // Check for numeric values
     const numbers = msg.match(/\d+/);
     return numbers ? numbers[0] : null;
 }
@@ -274,11 +273,9 @@ function extractProductSize(msg) {
     
     const lower = msg.toLowerCase();
     
-    // Check for exact kg matches
     const kgMatch = lower.match(/(\d+)\s*kg/);
     if (kgMatch) return kgMatch[0];
     
-    // Check for size descriptions
     for (const [desc, size] of Object.entries(sizes)) {
         if (lower.includes(desc)) {
             return size;
@@ -289,11 +286,10 @@ function extractProductSize(msg) {
 }
 
 function extractAddress(msg) {
-    // Common address patterns
     const patterns = [
-        /\d+\s+[A-Za-z\s,]+/,  // Street address
-        /[A-Za-z\s]+,\s*[A-Za-z\s]+/,  // Area, City
-        /[A-Za-z\s]+\s+\d{5,6}/  // Area with postal code
+        /\d+\s+[A-Za-z\s,]+/,
+        /[A-Za-z\s]+,\s*[A-Za-z\s]+/,
+        /[A-Za-z\s]+\s+\d{5,6}/
     ];
     
     for (const pattern of patterns) {
@@ -517,7 +513,7 @@ function handleInput(overrideMsg = null) {
                 break;
             case "address":
                 const address = extractAddress(msg);
-                if (address || msg.length > 10) {  // Basic validation for address
+                if (address || msg.length > 10) {
                     data.address = msg;
                     step = "deliveryTime";
                     simulateTyping("When would you like the delivery?", () => {
@@ -588,16 +584,32 @@ function submitData(action, payload) {
     simulateTyping("Processing your request...", () => {
         addMessage("Processing your request...");
         
-        fetch("https://chatbot-proxy-803731777943.us-central1.run.app", {
+        const url = "https://script.google.com/macros/s/AKfycbyvISbmGOAJ7L6Zxy_qpiqSqy1vTE8yKbwpVFnet1fvw_tBt5n_1YcqvB5RvLHAgRJK/exec";
+        
+        // Log what we're sending
+        console.log('Sending data:', { action, ...payload });
+
+        // Create URL-encoded data
+        const formData = new URLSearchParams();
+        formData.append('data', JSON.stringify({ action, ...payload }));
+
+        fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action, ...payload })
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: formData.toString()
         })
-            .then(r => r.text())
-            .then(txt => {
+            .then(response => {
+                console.log('Response received:', response);
                 updateContext(action, payload);
-                simulateTyping(txt || "✅ Done!", () => {
-                    addMessage(txt || "✅ Done!");
+                let successMessage = action === 'addCustomer' ? 
+                    "✅ Registration successful!" : 
+                    "✅ Order placed successfully!";
+                
+                simulateTyping(successMessage, () => {
+                    addMessage(successMessage);
                     setTimeout(() => {
                         simulateTyping("Can I help you with anything else?", () => {
                             addMessage("Can I help you with anything else?");
@@ -607,7 +619,8 @@ function submitData(action, payload) {
                 });
                 resetChat();
             })
-            .catch(() => {
+            .catch(error => {
+                console.error('Error:', error);
                 simulateTyping("⚠️ Something went wrong. Please try again.", () => {
                     addMessage("⚠️ Something went wrong. Please try again.");
                 });
@@ -643,4 +656,4 @@ input.addEventListener("input", () => {
 });
 </script>
 </body>
-</html>    
+</html>
